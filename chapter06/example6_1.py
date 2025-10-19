@@ -1,10 +1,19 @@
 import asyncio 
 import websockets
 import json
+import sys
+import os
 
 from loguru import logger
-from chapter05 import KiwoomTR
-from .config import websocket_url
+
+# 프로젝트 루트를 sys.path에 추가
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from chapter05.utils import KiwoomTR
+from chapter06.config import websocket_url
 
 
 class WebSocketClient:
@@ -41,18 +50,34 @@ class WebSocketClient:
 	async def send_message(self, message):
 		if not self.connected:
 			await self.connect()  # 연결이 끊어졌다면 재연결
-		if self.connected:
+		
+		# 연결 상태와 websocket 객체 확인
+		if not self.connected or self.websocket is None:
+			logger.error("WebSocket 연결이 없습니다. 메시지를 보낼 수 없습니다.")
+			return False
+		
+		try:
 			# message가 문자열이 아니면 JSON으로 직렬화
 			if not isinstance(message, str):
 				message = json.dumps(message)
 
-		await self.websocket.send(message)
-		print(f'Message sent: {message}')
+			await self.websocket.send(message)
+			print(f'Message sent: {message}')
+			return True
+		except Exception as e:
+			logger.error(f"메시지 전송 실패: {e}")
+			self.connected = False
+			return False
 
 	# 서버에서 오는 메시지를 수신하여 출력합니다.
 	async def receive_messages(self):
 		while self.keep_running:
 			try:
+				# websocket 연결 확인
+				if not self.connected or self.websocket is None:
+					logger.error("WebSocket 연결이 없습니다. 수신을 중단합니다.")
+					break
+				
 				# 서버로부터 수신한 메시지를 JSON 형식으로 파싱
 				response = json.loads(await self.websocket.recv())
 				tr_name = response.get('trnm')
@@ -137,9 +162,20 @@ async def main():
 	# WebSocket 클라이언트를 백그라운드에서 실행합니다.
 	receive_task = asyncio.create_task(websocket_client.run())
 
+	# 연결 대기 (최대 5초)
+	await asyncio.sleep(2)
+	
+	# 연결 상태 확인
+	if not websocket_client.connected or websocket_client.websocket is None:
+		logger.error("WebSocket 연결 실패. 프로그램을 종료합니다.")
+		websocket_client.keep_running = False
+		receive_task.cancel()
+		return
+
+	logger.info("WebSocket 연결 성공. 실시간 등록을 시작합니다.")
+	
 	# 실시간 항목 등록
-	await asyncio.sleep(1)
-	await websocket_client.send_message({ 
+	success = await websocket_client.send_message({ 
 		'trnm': 'REG', # 서비스명 (REG: 등록, REMOVE: 해제)
 		'grp_no': '1', # 그룹번호
 		'refresh': '1', # 기존등록유지여부
@@ -148,9 +184,20 @@ async def main():
 			'type': ['0B', '0D'], # 실시간 항목 (주식 체결, 호가 등록)
 		}]
 	})
+	
+	if not success:
+		logger.error("실시간 등록 실패. 프로그램을 종료합니다.")
+		websocket_client.keep_running = False
+		receive_task.cancel()
+		return
 
 	# 수신 작업이 종료될 때까지 대기
-	await receive_task
+	try:
+		await receive_task
+	except asyncio.CancelledError:
+		logger.info("수신 작업이 취소되었습니다.")
+	finally:
+		await websocket_client.disconnect()
 
 # asyncio로 프로그램을 실행합니다.
 if __name__ == '__main__':

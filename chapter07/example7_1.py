@@ -1,12 +1,19 @@
 import asyncio 
 import websockets
 import json
-from config import api_key, api_secret_key, host, websocket_url
-from loguru import logger
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'chapter05'))
-from utils import KiwoomTR
+
+from loguru import logger
+
+# 프로젝트 루트를 sys.path에 추가
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from chapter07.config import api_key, api_secret_key, host, websocket_url
+from chapter05.utils import KiwoomTR
 
 
 class WebSocketClient:
