@@ -52,7 +52,16 @@ def fn_kt10000(token, data, cont_yn='N', next_key=''):
         error_message = f'HTTP Error: {e}\nResponse Body: {response.text}'
         raise requests.HTTPError(error_message) from e
     
-    return response.json()['ord_no']
+    # 응답 데이터 확인 및 안전한 처리
+    res = response.json()
+    print(f"매수주문 응답: {res}")
+    
+    # ord_no가 있는지 확인
+    if 'ord_no' in res:
+        return res['ord_no']
+    else:
+        print(f"⚠️ 주문번호가 응답에 없습니다. 응답: {res}")
+        return None
 
 
 #주식 매도주문
@@ -78,7 +87,17 @@ def fn_kt10001(token, data, cont_yn='N', next_key=''):
         # 에러를 response 내용까지 추가해서 출력
         error_message = f'HTTP Error: {e}\nResponse Body: {response.text}'
         raise requests.HTTPError(error_message) from e
-    return response.json()['ord_no']
+    
+    # 응답 데이터 확인 및 안전한 처리
+    res = response.json()
+    print(f"매도주문 응답: {res}")
+    
+    # ord_no가 있는지 확인
+    if 'ord_no' in res:
+        return res['ord_no']
+    else:
+        print(f"⚠️ 주문번호가 응답에 없습니다. 응답: {res}")
+        return None
 
 
 #주식 정정주문
@@ -86,7 +105,7 @@ def fn_kt10002(token, data, cont_yn='N', next_key=''):
     endpoint = '/api/dostk/ordr'
     url = host + endpoint
     
-    # 2. header 데이터 headers =(
+    # 2. header 데이터
     headers = {
         'Content-Type': 'application/json;charset=UTF-8', # 컨텐츠타입
         'authorization': f'Bearer {token}', # 접근토큰
@@ -104,7 +123,17 @@ def fn_kt10002(token, data, cont_yn='N', next_key=''):
         # 에러를 response 내용까지 추가해서 출력
         error_message = f'HTTP Error: {e}\nResponse Body: {response.text}'
         raise requests.HTTPError(error_message) from e
-    return response.json()['ord_no']
+    
+    # 응답 데이터 확인 및 안전한 처리
+    res = response.json()
+    print(f"정정주문 응답: {res}")
+    
+    # ord_no가 있는지 확인
+    if 'ord_no' in res:
+        return res['ord_no']
+    else:
+        print(f"⚠️ 주문번호가 응답에 없습니다. 응답: {res}")
+        return None
 
 
 # 주식 취소주문
@@ -112,7 +141,7 @@ def fn_kt10003(token, data, cont_yn='N', next_key=''):
     endpoint ='/api/dostk/ordr' 
     url = host + endpoint
 
-    # 2. header 데이터터
+    # 2. header 데이터
     headers = {
         'Content-Type': 'application/json;charset=UTF-8', # 컨텐츠타입
         'authorization': f'Bearer {token}', # 접근토큰
@@ -130,7 +159,17 @@ def fn_kt10003(token, data, cont_yn='N', next_key=''):
         # 에러를 response 내용까지 추가해서 출력
         error_message = f"HTTP Error: {e}\nResponse Body: {response.text}"
         raise requests.HTTPError(error_message) from e
-    return response.json()['ord_no']
+    
+    # 응답 데이터 확인 및 안전한 처리
+    res = response.json()
+    print(f"취소주문 응답: {res}")
+    
+    # ord_no가 있는지 확인
+    if 'ord_no' in res:
+        return res['ord_no']
+    else:
+        print(f"⚠️ 주문번호가 응답에 없습니다. 응답: {res}")
+        return None
 
 
 # 실행 구간
@@ -156,7 +195,12 @@ if __name__ == '__main__':
 	}
 
     # 3. API 실행 (매수주문)
-    fn_kt10000(token=token, data=params)
+    print("=== 매수주문 실행 ===")
+    buy_order_num = fn_kt10000(token=token, data=params)
+    
+    if buy_order_num is None:
+        print("❌ 매수주문 실패 - 다음 단계를 건너뜁니다.")
+        exit()
 
     # 매도주문 요청 데이터
     params = {
@@ -169,12 +213,17 @@ if __name__ == '__main__':
 	}
 
     # 4. API 실행 (매도주문)
-    order_num = fn_kt10001(token=token, data=params)
+    print("\n=== 매도주문 실행 ===")
+    sell_order_num = fn_kt10001(token=token, data=params)
+    
+    if sell_order_num is None:
+        print("❌ 매도주문 실패 - 정정/취소 단계를 건너뜁니다.")
+        exit()
 
     # 정정주문 요청 데이터
     params = {
 		'dmst_stex_tp': 'KRX', # 국내거래소구분 KRX,NXT,SOR
-        'orig_ord_no': order_num, # 원주문번호
+        'orig_ord_no': sell_order_num, # 원주문번호
 		'stk_cd': '005930', # 종목코드 
 		'mdfy_qty': '1', # 정정수량 
 		'mdfy_uv': '60000', # 정정단가
@@ -182,15 +231,26 @@ if __name__ == '__main__':
 	}
 
     # 5. API 실행 (정정주문)
-    order_num = fn_kt10002(token=token, data=params)
+    print("\n=== 정정주문 실행 ===")
+    modify_order_num = fn_kt10002(token=token, data=params)
+    
+    if modify_order_num is None:
+        print("❌ 정정주문 실패 - 취소 단계를 건너뜁니다.")
+        exit()
 
    # 취소주문 요청 데이터
     params = {
 		'dmst_stex_tp': 'KRX', # 국내거래소구분 KRX,NXT,SOR
-        'orig_ord_no': order_num, # 원주문번호
+        'orig_ord_no': modify_order_num, # 원주문번호
 		'stk_cd': '005930', # 종목코드 
 		'cncl_qty': '0', # 취소수량 '0' 입력시 잔량 전부 취소
 	}
 
     # 6. API 실행 (취소주문)
-    fn_kt10003(token=token, data=params)    # 정정주문 이후 취소 주문할 경우 정정된 주문번호를 Input으로 넣어줘야 한다.
+    print("\n=== 취소주문 실행 ===")
+    cancel_result = fn_kt10003(token=token, data=params)
+    
+    if cancel_result is None:
+        print("❌ 취소주문 실패")
+    else:
+        print("✅ 모든 주문 테스트 완료")
